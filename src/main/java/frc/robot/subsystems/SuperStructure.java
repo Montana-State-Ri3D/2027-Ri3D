@@ -5,6 +5,7 @@
 package frc.robot.subsystems;
 
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.units.Units;
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -19,6 +20,7 @@ import frc.robot.Constants.FieldConstants;
 import frc.robot.Constants.IntakeConstants;
 import frc.robot.Constants.ShooterConstants;
 import frc.robot.Constants.SuperStructureConstants;
+import frc.robot.subsystems.arm.Arm;
 import frc.robot.subsystems.elevator.Elevator;
 import frc.robot.subsystems.hopper.Hopper;
 import frc.robot.subsystems.intake.Intake;
@@ -44,6 +46,7 @@ public class SuperStructure extends SubsystemBase {
   private final Intake intake;
   private final Shooter shooter;
   private final Hopper hopper;
+  private final Arm arm;
   private final Supplier<Pose2d> robotPose;
 
   private TunableNumberGroup tunableGroup =
@@ -89,10 +92,12 @@ public class SuperStructure extends SubsystemBase {
       Intake intake,
       Shooter shooter,
       Hopper hopper,
+      Arm arm,
       Supplier<Pose2d> robotPose) {
     this.elevator = elevator;
     this.intake = intake;
     this.shooter = shooter;
+    this.arm = arm;
     this.hopper = hopper;
     this.robotPose = robotPose;
   }
@@ -108,6 +113,7 @@ public class SuperStructure extends SubsystemBase {
         intake.setExtenderPos(IntakeConstants.Extender.MAX_LENGTH);
         hopper.setVel(Units.RPM.of(0));
         shooter.setVel(Units.RPM.of(0));
+        arm.setAngle(Rotation2d.kZero);
         break;
       case Intake:
         elevator.setHeight(Units.Inches.of(stowElevatorHeightInches.get()));
@@ -117,6 +123,7 @@ public class SuperStructure extends SubsystemBase {
         intake.setExtenderPos(IntakeConstants.Extender.MAX_LENGTH);
         hopper.setVel(Units.RPM.of(0));
         shooter.setVel(Units.RPM.of(0));
+        arm.setAngle(Rotation2d.kZero);
         break;
       case ScorePrep:
         elevator.setHeight(Units.Inches.of(stowElevatorHeightInches.get()));
@@ -127,6 +134,7 @@ public class SuperStructure extends SubsystemBase {
         hopper.setVel(Units.RPM.of(0));
         shooter.setVel(
             getOptimalShooterVel());
+        arm.setAngle(Rotation2d.kZero);
         break;
       case Score:
         elevator.setHeight(Units.Inches.of(stowElevatorHeightInches.get()));
@@ -137,6 +145,7 @@ public class SuperStructure extends SubsystemBase {
         hopper.setVel(Units.RPM.of(hopperVelRPM.get()));
         shooter.setVel(
             getOptimalShooterVel());
+        arm.setAngle(Rotation2d.kZero);
         break;
       case ClimbPrep:
         elevator.setHeight(Units.Inches.of(climbPrepElevatorHeightInches.get()));
@@ -150,6 +159,7 @@ public class SuperStructure extends SubsystemBase {
         }
         hopper.setVel(Units.RPM.of(0));
         shooter.setVel(Units.RPM.of(0));
+        arm.setAngle(Rotation2d.kZero);
         break;
       case Climb:
         elevator.setHeight(Units.Inches.of(climbElevatorHeightInches.get()));
@@ -159,6 +169,7 @@ public class SuperStructure extends SubsystemBase {
         intake.setExtenderPos(IntakeConstants.Extender.HOME_POSITION);
         hopper.setVel(Units.RPM.of(0));
         shooter.setVel(Units.RPM.of(0));
+        arm.setAngle(Rotation2d.kZero);
         break;
       case Reverse:
         elevator.setHeight(Units.Inches.of(stowElevatorHeightInches.get()));
@@ -168,6 +179,7 @@ public class SuperStructure extends SubsystemBase {
         intake.setExtenderPos(IntakeConstants.Extender.MAX_LENGTH);
         hopper.setVel(Units.RPM.of(-hopperVelRPM.get()));
         shooter.setVel(Units.RPM.of(0));
+        arm.setAngle(Rotation2d.kZero);
         break;
       default:
         break;

@@ -29,12 +29,17 @@ import frc.robot.autonomous.AutoManager;
 import frc.robot.stateMachines.SuperStateMachine;
 import frc.robot.stateMachines.SuperStateMachine.SuperState;
 import frc.robot.subsystems.SuperStructure;
+import frc.robot.subsystems.arm.Arm;
+import frc.robot.subsystems.arm.ArmIO;
+import frc.robot.subsystems.arm.ArmIOReal;
+import frc.robot.subsystems.arm.ArmIOSim;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveModules;
 import frc.robot.subsystems.drive.gyro.GyroIO;
 import frc.robot.subsystems.drive.gyro.GyroIOPigeon2;
 import frc.robot.subsystems.elevator.Elevator;
 import frc.robot.subsystems.elevator.ElevatorIO;
+import frc.robot.subsystems.elevator.ElevatorIOReal;
 import frc.robot.subsystems.elevator.ElevatorIOSim;
 import frc.robot.subsystems.hopper.Hopper;
 import frc.robot.subsystems.hopper.HopperIO;
@@ -62,9 +67,9 @@ public class RobotContainer {
   private final Intake intake;
   private final Hopper hopper;
   private final Shooter shooter;
+  private final Arm arm;
   private final USBVision vision;
   // private final Vision vision;
-  private final TunableNumberGroup tempTunables = new TunableNumberGroup("TempTunables");
 
   private final SuperStateMachine superStateMachine;
 
@@ -80,10 +85,11 @@ public class RobotContainer {
     switch (Constants.currentMode) {
       case REAL: // Real robot, instantiate hardware IO implementations
         drive = new Drive(new DriveModules(true), new GyroIOPigeon2(), controller);
-        elevator = new Elevator(new ElevatorIO() {});
-        intake = new Intake(new IntakeIOReal() {});
-        shooter = new Shooter(new ShooterIOReal() {});
-        hopper = new Hopper(new HopperIOReal() {});
+        elevator = new Elevator(new ElevatorIOReal());
+        intake = new Intake(new IntakeIOReal());
+        shooter = new Shooter(new ShooterIOReal());
+        hopper = new Hopper(new HopperIOReal());
+        arm = new Arm(new ArmIOReal());
         vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
         // vision =
         //     new Vision(
@@ -98,6 +104,7 @@ public class RobotContainer {
         intake = new Intake(new IntakeIOSim());
         shooter = new Shooter(new ShooterIOSim());
         hopper = new Hopper(new HopperIOSim());
+        arm = new Arm(new ArmIOSim());
         vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
         // vision =
         //     new Vision(
@@ -113,12 +120,13 @@ public class RobotContainer {
         intake = new Intake(new IntakeIO() {});
         shooter = new Shooter(new ShooterIO() {});
         hopper = new Hopper(new HopperIO() {});
+        arm = new Arm(new ArmIO() {});
         vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
         // vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         break;
     }
 
-    superStructure = new SuperStructure(elevator, intake, shooter, hopper, drive::getPose);
+    superStructure = new SuperStructure(elevator, intake, shooter, hopper, arm, drive::getPose);
 
     superStateMachine = new SuperStateMachine(drive, superStructure);
 
@@ -171,6 +179,7 @@ public class RobotContainer {
               elevator.setIdleMode(IdleMode.kBrake);
               intake.setIdleMode(IdleMode.kBrake);
               shooter.setIdleMode(IdleMode.kBrake);
+              arm.setIdleMode(IdleMode.kBrake);
             }));
 
     SmartDashboard.putData(
@@ -180,6 +189,7 @@ public class RobotContainer {
               elevator.setIdleMode(IdleMode.kCoast);
               intake.setIdleMode(IdleMode.kCoast);
               shooter.setIdleMode(IdleMode.kCoast);
+              arm.setIdleMode(IdleMode.kCoast);
             }));
 
     SmartDashboard.putData(
@@ -188,6 +198,7 @@ public class RobotContainer {
             () -> {
               elevator.resetSensorToHomePosition();
               intake.resetExtenderSensorToHomePosition();
+              arm.resetSensorToHomePosition();
             }));
   }
 

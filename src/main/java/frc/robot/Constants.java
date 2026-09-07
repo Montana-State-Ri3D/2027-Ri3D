@@ -19,6 +19,7 @@ import com.revrobotics.spark.config.SparkFlexConfig;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -243,6 +244,27 @@ public final class Constants {
     }
   }
 
+  public class ArmConstants {
+    public static final String ROOT_TABLE = "Arm";
+    public static final double GEAR_RATIO = 1; // TODO: determine (mech / motor)
+    public static final boolean INVERT = false; // TODO: determine
+    public static final double MOI = 0.0001;
+    public static final Rotation2d HOME_ANGLE = Rotation2d.kZero;
+    public static final Rotation2d MIN_ANGLE = Rotation2d.kZero;
+    public static final Rotation2d MAX_ANGLE = Rotation2d.k180deg;
+
+    public static final SparkMaxConfig MOTOR_CONFIG() {
+      SparkMaxConfig config = new SparkMaxConfig();
+      config.absoluteEncoder.inverted(INVERT);
+      config.inverted(INVERT);
+      config.idleMode(IdleMode.kBrake);
+      config.smartCurrentLimit(40);
+      config.encoder.positionConversionFactor(GEAR_RATIO);
+      config.encoder.velocityConversionFactor(GEAR_RATIO);
+      return config;
+    }
+  }
+
   public class VisionConstants {
     public static final String ROOT_TABLE = "Vision";
 
@@ -325,6 +347,7 @@ public final class Constants {
     public static final int HOPPER_FOLLOW_CAN_ID = 12;
     public static final int SHOOTER_LEAD_CAN_ID = 13;
     public static final int SHOOTER_FOLLOW_CAN_ID = 14;
+    public static final int ARM_CAN_ID = 15;
   }
 
   public class FieldConstants {
