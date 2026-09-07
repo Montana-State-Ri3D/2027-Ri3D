@@ -5,7 +5,7 @@
 package frc.robot.subsystems.shooter;
 
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import edu.wpi.first.units.Units;
+import edu.wpi.first.units.measure.Units;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;

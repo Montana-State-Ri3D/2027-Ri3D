@@ -2,7 +2,7 @@ package frc.robot.subsystems.shooter;
 
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.units.Units;
+import edu.wpi.first.units.measure.Units;
 import edu.wpi.first.units.measure.AngularVelocity;
 import frc.lib.teamBSR.GenericMotorSim;
 import frc.robot.Constants;
