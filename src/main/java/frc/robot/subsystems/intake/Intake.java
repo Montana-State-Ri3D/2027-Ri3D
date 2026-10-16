@@ -67,6 +67,8 @@ public class Intake extends SubsystemBase {
 
   private Distance extenderTargetPos = Units.Inches.of(0);
 
+  private boolean extended = true;
+
   // Motion constants
   // TODO: tune constants
   static {
