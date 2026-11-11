@@ -80,6 +80,8 @@ public final class Constants {
 
     public static final double MOI = 0.00001;
 
+    public static final String[] MODULE_NAMES = {"FrontLeft", "FrontRight", "BackLeft", "BackRight"};
+
     public static final SparkMaxConfig MOTOR_CONFIG(int id) {
       SparkMaxConfig config = new SparkMaxConfig();
       config.absoluteEncoder.inverted(MOTOR_INVERTS[id]);

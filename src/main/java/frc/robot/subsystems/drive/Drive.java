@@ -26,6 +26,7 @@ import frc.lib.team6328.LoggedTunableNumber;
 import frc.robot.Constants;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.Mode;
+import frc.robot.RobotOdometry;
 import frc.robot.autonomous.ChoreoTrajectoryWithName;
 import frc.robot.subsystems.drive.ChoreoHelper.ChassisSpeedsWithPathEnd;
 import frc.robot.subsystems.drive.gyro.GyroIO;
@@ -49,6 +50,8 @@ public class Drive extends SubsystemBase {
 
   private final GyroIO gyroIO;
   private final GyroIOInputsAutoLogged gyroInputs = new GyroIOInputsAutoLogged();
+
+  private final RobotOdometry odometry;
 
   private final CommandXboxController controller;
 
@@ -113,11 +116,11 @@ public class Drive extends SubsystemBase {
   private boolean atTargetPose;
   private boolean atTargetAngle;
 
-  public Drive(DriveModules modules, GyroIO gyroIO, CommandXboxController controller) {
+  public Drive(DriveModules modules, GyroIO gyroIO, RobotOdometry odometry, CommandXboxController controller) {
     this.modules = modules;
     this.gyroIO = gyroIO;
+    this.odometry = odometry;
     this.controller = controller;
-    updateConstants();
     driveToPose = new DriveToPose(this, () -> targetPose);
     rotateToAngleController.enableContinuousInput(-Math.PI, Math.PI);
     rotateToAngleController.setTolerance(Math.toRadians(rotToAngTolerance.get()));
@@ -125,7 +128,7 @@ public class Drive extends SubsystemBase {
 
   @Override
   public void periodic() {
-    modules.updateInputs(inputs);
+    modules.perodic();
     gyroIO.updateInputs(gyroInputs);
     Logger.processInputs(DriveConstants.ROOT_TABLE, inputs);
     Logger.processInputs(DriveConstants.ROOT_TABLE + "/Gyro", gyroInputs);
@@ -141,7 +144,6 @@ public class Drive extends SubsystemBase {
         RobotBase.isReal() ? gyroInputs.yawPosition : simYawAngle, inputs.positions);
 
     int hc = hashCode();
-    if (tunableP.hasChanged(hc) || tunableV.hasChanged(hc)) updateConstants();
 
     newState = !prevState.equals(state);
     switch (state) {
@@ -153,7 +155,7 @@ public class Drive extends SubsystemBase {
         atTargetAngle = false;
         if (choreoHelper != null) {
           ChassisSpeedsWithPathEnd result =
-              choreoHelper.calculateChassisSpeeds(getPose(), System.currentTimeMillis() / 1000.0);
+              choreoHelper.calculateChassisSpeeds(odometry.getEstimatedPose2d(), System.currentTimeMillis() / 1000.0);
           atTargetPose = result.atEndOfPath();
           driveRobotCentric(result.chassisSpeeds());
         } else {
@@ -233,51 +235,12 @@ public class Drive extends SubsystemBase {
             getRotation()));
   }
 
-  private void updateConstants() {
-    modules.updateConstants(tunableV.get(), tunableP.get());
-  }
-
   public void driveRobotCentric(ChassisSpeeds speeds) {
     modules.setVelocity(speeds);
   }
 
-  /** Adds a new timestamped vision measurement. */
-  public void addVisionMeasurement(
-      Pose2d visionRobotPoseMeters,
-      double timestampSeconds,
-      Matrix<N3, N1> visionMeasurementStdDevs) {
-    poseEstimator.addVisionMeasurement(
-        visionRobotPoseMeters, timestampSeconds, visionMeasurementStdDevs);
-  }
-
-  /** Returns the latest estimated rotation from the pose estimator. */
-  public Rotation2d getRotation() {
-    return getPose().getRotation();
-  }
-
-  public ChassisSpeeds fieldVelocity() {
-    return inputs.realSpeeds;
-  }
-
-  @AutoLogOutput(key = DriveConstants.ROOT_TABLE + "/EstimatedPose")
-  public Pose2d getPose() {
-    return poseEstimator.getEstimatedPosition();
-  }
-
-  public void setPose(Pose2d pose) {
-    poseEstimator.resetPose(pose);
-  }
-
-  public void setRotation(Rotation2d rot) {
-    poseEstimator.resetRotation(rot);
-  }
-
   public void stop() {
-    modules.setVoltage(Units.Volts.of(0));
-  }
-
-  public void setModuleVoltages(Voltage[] volts) {
-    modules.setVoltage(volts);
+    modules.stop();
   }
 
   public void setState(DriveState state) {

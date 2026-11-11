@@ -34,6 +34,7 @@ import frc.robot.subsystems.arm.ArmIO;
 import frc.robot.subsystems.arm.ArmIOReal;
 import frc.robot.subsystems.arm.ArmIOSim;
 import frc.robot.subsystems.drive.Drive;
+import frc.robot.subsystems.drive.DriveModuleIOTalonFX;
 import frc.robot.subsystems.drive.DriveModules;
 import frc.robot.subsystems.drive.gyro.GyroIO;
 import frc.robot.subsystems.drive.gyro.GyroIOPigeon2;
@@ -84,7 +85,8 @@ public class RobotContainer {
   public RobotContainer() {
     switch (Constants.currentMode) {
       case REAL: // Real robot, instantiate hardware IO implementations
-        drive = new Drive(new DriveModules(true), new GyroIOPigeon2(), controller);
+        //TODO: fix drive instantiation
+        drive = new Drive(new DriveModules(new GyroIOPigeon2(), new DriveModuleIOTalonFX(Talon), new DriveModuleIOTalonFX(1), new DriveModuleIOTalonFX(2), new DriveModuleIOTalonFX(3)), , controller);
         elevator = new Elevator(new ElevatorIOReal());
         intake = new Intake(new IntakeIOReal());
         shooter = new Shooter(new ShooterIOReal());
