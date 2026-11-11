@@ -1,294 +1,205 @@
 package frc.robot.subsystems.drive;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.estimator.MecanumDrivePoseEstimator;
-import edu.wpi.first.math.geometry.Pose2d;
+import static edu.wpi.first.units.Units.*;
+
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.MecanumDriveWheelPositions;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.units.Units;
-import edu.wpi.first.units.measure.LinearVelocity;
-import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.lib.team2930.LoggerEntry;
-import frc.lib.team2930.LoggerGroup;
-import frc.lib.team2930.TunableNumberGroup;
-import frc.lib.team6328.DriveToPose;
-import frc.lib.team6328.LoggedTunableNumber;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.Constants;
-import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.Mode;
-import frc.robot.autonomous.ChoreoTrajectoryWithName;
-import frc.robot.subsystems.drive.ChoreoHelper.ChassisSpeedsWithPathEnd;
+import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.gyro.GyroIO;
 import frc.robot.subsystems.drive.gyro.GyroIOInputsAutoLogged;
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 import org.littletonrobotics.junction.AutoLogOutput;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends SubsystemBase {
+  // TunerConstants doesn't include these constants, so they are declared locally
+  static final double ODOMETRY_FREQUENCY = TunerConstants.kCANBus.isNetworkFD() ? 250.0 : 100.0;
+  public static final double DRIVE_BASE_RADIUS =
+      Math.max(
+          Math.max(
+              Math.hypot(TunerConstants.FrontLeft.LocationX, TunerConstants.FrontLeft.LocationY),
+              Math.hypot(TunerConstants.FrontRight.LocationX, TunerConstants.FrontRight.LocationY)),
+          Math.max(
+              Math.hypot(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
+              Math.hypot(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)));
 
-  public enum DriveState {
-    Controller,
-    PathFollow,
-    DriveToPose,
-    RotateToAngle
-  }
-
-  private DriveState state = DriveState.Controller;
-
-  private final DriveModules modules;
-  private final DriveIOInputsAutoLogged inputs = new DriveIOInputsAutoLogged();
-
+    static final Lock odometryLock = new ReentrantLock();
   private final GyroIO gyroIO;
   private final GyroIOInputsAutoLogged gyroInputs = new GyroIOInputsAutoLogged();
+  private final Module[] modules = new Module[4]; // FL, FR, BL, BR
+  private final SysIdRoutine sysId;
+  private final Alert gyroDisconnectedAlert =
+      new Alert("Disconnected gyro, using kinematics as fallback.", AlertType.kError);
 
-  private final CommandXboxController controller;
-
-  private final MecanumDrivePoseEstimator poseEstimator =
-      new MecanumDrivePoseEstimator(
-          DriveConstants.KINEMATICS,
-          Rotation2d.kZero,
-          new MecanumDriveWheelPositions(),
-          Pose2d.kZero);
-
-  private static final LoggerGroup loggerGroup = LoggerGroup.build(DriveConstants.ROOT_TABLE);
-  private static final LoggerEntry.Text stateLogger = loggerGroup.buildString("currentState");
-  private static final LoggerGroup rotateToAngleLoggerGroup = loggerGroup.subgroup("RotateToAngle");
-  private static final LoggerEntry.Decimal rotationLogger =
-      rotateToAngleLoggerGroup.buildDecimal("CurrentRotation");
-  private static final LoggerEntry.Decimal targetRotationLogger =
-      rotateToAngleLoggerGroup.buildDecimal("TargetRotation");
-
-  private static final TunableNumberGroup group = new TunableNumberGroup(DriveConstants.ROOT_TABLE);
-
-  private static LoggedTunableNumber tunableV = group.build("kV");
-  private static LoggedTunableNumber tunableP = group.build("kP");
-
-  static { // TODO: tune PID
-    if (Constants.currentMode == Mode.REAL) {
-      tunableV.initDefault(0.009);
-      tunableP.initDefault(0);
-    } else {
-      tunableV.initDefault(0.082);
-      tunableP.initDefault(0);
-    }
-  }
-
-  private final TunableNumberGroup linear = group.subgroup("Linear");
-  private final LoggedTunableNumber linearKP = linear.build("P", 0.1);
-  private final LoggedTunableNumber linearKD = linear.build("D", 0.0);
-  private final TunableNumberGroup angular = group.subgroup("Angular");
-  private final LoggedTunableNumber angularKP = angular.build("P", 0.1);
-  private final LoggedTunableNumber angularKD = angular.build("D", 0.0);
-
-  private Rotation2d simYawAngle = Rotation2d.kZero;
-
-  private final double DEADBAND = 0.1;
-
-  private ChoreoHelper choreoHelper;
-
-  private Pose2d targetPose = Pose2d.kZero;
-
-  private DriveToPose driveToPose;
-
-  private boolean newState = false;
-  private DriveState prevState = DriveState.Controller;
-
-  private final TunableNumberGroup rotateToAngleGroup = group.subgroup("RotateToAngle");
-  private final LoggedTunableNumber rotToAngKP = rotateToAngleGroup.build("P", 0.3);
-  private final LoggedTunableNumber rotToAngKD = rotateToAngleGroup.build("D", 0.0);
-  private final LoggedTunableNumber rotToAngTolerance = rotateToAngleGroup.build("toleranceDeg", 4);
-  private final PIDController rotateToAngleController =
-      new PIDController(rotToAngKP.get(), 0, rotToAngKD.get());
-  private Rotation2d targetAngle = Rotation2d.kZero;
-
-  private boolean atTargetPose;
-  private boolean atTargetAngle;
-
-  public Drive(DriveModules modules, GyroIO gyroIO, CommandXboxController controller) {
-    this.modules = modules;
+  private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(getModuleTranslations());
+  
+  public Drive(
+      GyroIO gyroIO,
+      ModuleIO flModuleIO,
+      ModuleIO frModuleIO,
+      ModuleIO blModuleIO,
+      ModuleIO brModuleIO) {
     this.gyroIO = gyroIO;
-    this.controller = controller;
-    updateConstants();
-    driveToPose = new DriveToPose(this, () -> targetPose);
-    rotateToAngleController.enableContinuousInput(-Math.PI, Math.PI);
-    rotateToAngleController.setTolerance(Math.toRadians(rotToAngTolerance.get()));
+    modules[0] = new Module(flModuleIO, 0, TunerConstants.FrontLeft);
+    modules[1] = new Module(frModuleIO, 1, TunerConstants.FrontRight);
+    modules[2] = new Module(blModuleIO, 2, TunerConstants.BackLeft);
+    modules[3] = new Module(brModuleIO, 3, TunerConstants.BackRight);
+
+    // Configure SysId
+    sysId =
+        new SysIdRoutine(
+            new SysIdRoutine.Config(
+                null,
+                null,
+                null,
+                (state) -> Logger.recordOutput("Drive/SysIdState", state.toString())),
+            new SysIdRoutine.Mechanism(
+                (voltage) -> runCharacterization(voltage.in(Volts)), null, this));
   }
 
   @Override
   public void periodic() {
-    modules.updateInputs(inputs);
+    odometryLock.lock(); // Prevents odometry updates while reading data
     gyroIO.updateInputs(gyroInputs);
-    Logger.processInputs(DriveConstants.ROOT_TABLE, inputs);
-    Logger.processInputs(DriveConstants.ROOT_TABLE + "/Gyro", gyroInputs);
-    Logger.recordOutput(DriveConstants.ROOT_TABLE + "/TargetPose", targetPose);
-    Logger.recordOutput(
-        DriveConstants.ROOT_TABLE + "/TargetAngleDegrees", targetAngle.getDegrees());
-    if (RobotBase.isSimulation())
-      simYawAngle =
-          simYawAngle.plus(
-              Rotation2d.fromRadians(
-                  inputs.realSpeeds.omegaRadiansPerSecond * Constants.defaultPeriod));
-    poseEstimator.update(
-        RobotBase.isReal() ? gyroInputs.yawPosition : simYawAngle, inputs.positions);
-
-    int hc = hashCode();
-    if (tunableP.hasChanged(hc) || tunableV.hasChanged(hc)) updateConstants();
-
-    newState = !prevState.equals(state);
-    switch (state) {
-      case Controller:
-        atTargetAngle = false;
-        driveController(null);
-        break;
-      case PathFollow:
-        atTargetAngle = false;
-        if (choreoHelper != null) {
-          ChassisSpeedsWithPathEnd result =
-              choreoHelper.calculateChassisSpeeds(getPose(), System.currentTimeMillis() / 1000.0);
-          atTargetPose = result.atEndOfPath();
-          driveRobotCentric(result.chassisSpeeds());
-        } else {
-          atTargetPose = false;
-          driveRobotCentric(new ChassisSpeeds());
-        }
-        break;
-      case DriveToPose:
-        atTargetAngle = false;
-        if (newState) driveToPose.init();
-        driveToPose.run();
-        break;
-      case RotateToAngle:
-        if (rotToAngKP.hasChanged(hashCode()) || rotToAngKD.hasChanged(hashCode()))
-          rotateToAngleController.setPID(rotToAngKP.get(), 0, rotToAngKD.get());
-        if (rotToAngTolerance.hasChanged(hc))
-          rotateToAngleController.setTolerance(Math.toRadians(rotToAngTolerance.get()));
-        double currentRot = getRotation().getRadians();
-        double targetRot = targetAngle.getRadians();
-        rotationLogger.info(currentRot);
-        targetRotationLogger.info(targetRot);
-        driveController(rotateToAngleController.calculate(currentRot, targetRot));
-        atTargetAngle = rotateToAngleController.atSetpoint();
-        break;
-      default:
-        break;
+    Logger.processInputs("Drive/Gyro", gyroInputs);
+    for (var module : modules) {
+      module.periodic();
     }
-    stateLogger.info(state.name());
+    odometryLock.unlock();
 
-    prevState = state;
-  }
-
-  public void setTrajectory(ChoreoTrajectoryWithName traj) {
-    atTargetPose = false;
-    choreoHelper =
-        new ChoreoHelper(
-            System.currentTimeMillis() / 1000.0,
-            getPose(),
-            traj,
-            DriveConstants.WHEEL_OFFSETS[0].getX() / 2.0,
-            new PIDController(linearKP.get(), 0, linearKD.get()),
-            new PIDController(linearKP.get(), 0, linearKD.get()),
-            new PIDController(angularKP.get(), 0, angularKD.get()));
-    choreoHelper.setFinalTargetError(0.06);
-    choreoHelper.setFinalOffsetError(0.05);
-    choreoHelper.setFinalHeadingError(0.05);
-  }
-
-  public void setTargetPose(Pose2d target) {
-    targetPose = target;
-  }
-
-  public void setTargetAngle(Rotation2d target) {
-    targetAngle = target;
-  }
-
-  private void driveController(Double omegaOverride) {
-    double angMagnitude = MathUtil.applyDeadband(controller.getRightX(), DEADBAND);
-    LinearVelocity speedX =
-        DriveConstants.MAX_LINEAR_SPEED.times(
-            MathUtil.applyDeadband(controller.getLeftY(), DEADBAND));
-    LinearVelocity speedY =
-        DriveConstants.MAX_LINEAR_SPEED.times(
-            MathUtil.applyDeadband(-controller.getLeftX(), DEADBAND));
-    if (DriverStation.getAlliance().orElse(Alliance.Blue).equals(Alliance.Red)) {
-      speedX = speedX.unaryMinus();
-      speedY = speedY.unaryMinus();
+    // Stop moving when disabled
+    if (DriverStation.isDisabled()) {
+      for (var module : modules) {
+        module.stop();
+      }
     }
-    driveRobotCentric(
-        ChassisSpeeds.fromRobotRelativeSpeeds(
-            speedX,
-            speedY,
-            omegaOverride == null
-                ? Constants.DriveConstants.MAX_ANGULAR_SPEED.times(
-                    Math.copySign(angMagnitude * angMagnitude, angMagnitude))
-                : Constants.DriveConstants.MAX_ANGULAR_SPEED.times(omegaOverride),
-            getRotation()));
+
+    // Log empty setpoint states when disabled
+    if (DriverStation.isDisabled()) {
+      Logger.recordOutput("SwerveStates/Setpoints", new SwerveModuleState[] {});
+      Logger.recordOutput("SwerveStates/SetpointsOptimized", new SwerveModuleState[] {});
+    }
+
+    // Update gyro alert
+    gyroDisconnectedAlert.set(!gyroInputs.connected && Constants.currentMode != Mode.SIM);
   }
 
-  private void updateConstants() {
-    modules.updateConstants(tunableV.get(), tunableP.get());
+  /**
+   * Runs the drive at the desired velocity.
+   *
+   * @param speeds Speeds in meters/sec
+   */
+  public void runVelocity(ChassisSpeeds speeds) {
+    // Calculate module setpoints
+    ChassisSpeeds discreteSpeeds = ChassisSpeeds.discretize(speeds, 0.02);
+    SwerveModuleState[] setpointStates = kinematics.toSwerveModuleStates(discreteSpeeds);
+    SwerveDriveKinematics.desaturateWheelSpeeds(setpointStates, TunerConstants.kSpeedAt12Volts);
+
+    // Log unoptimized setpoints and setpoint speeds
+    Logger.recordOutput("SwerveStates/Setpoints", setpointStates);
+    Logger.recordOutput("SwerveChassisSpeeds/Setpoints", discreteSpeeds);
+
+    // Send setpoints to modules
+    for (int i = 0; i < 4; i++) {
+      modules[i].runSetpoint(setpointStates[i]);
+    }
+
+    // Log optimized setpoints (runSetpoint mutates each state)
+    Logger.recordOutput("SwerveStates/SetpointsOptimized", setpointStates);
   }
 
-  public void driveRobotCentric(ChassisSpeeds speeds) {
-    modules.setVelocity(speeds);
+  /** Runs the drive in a straight line with the specified drive output. */
+  public void runCharacterization(double output) {
+    for (int i = 0; i < 4; i++) {
+      modules[i].runCharacterization(output);
+    }
   }
 
-  /** Adds a new timestamped vision measurement. */
-  public void addVisionMeasurement(
-      Pose2d visionRobotPoseMeters,
-      double timestampSeconds,
-      Matrix<N3, N1> visionMeasurementStdDevs) {
-    poseEstimator.addVisionMeasurement(
-        visionRobotPoseMeters, timestampSeconds, visionMeasurementStdDevs);
-  }
-
-  /** Returns the latest estimated rotation from the pose estimator. */
-  public Rotation2d getRotation() {
-    return getPose().getRotation();
-  }
-
-  public ChassisSpeeds fieldVelocity() {
-    return inputs.realSpeeds;
-  }
-
-  @AutoLogOutput(key = DriveConstants.ROOT_TABLE + "/EstimatedPose")
-  public Pose2d getPose() {
-    return poseEstimator.getEstimatedPosition();
-  }
-
-  public void setPose(Pose2d pose) {
-    poseEstimator.resetPose(pose);
-  }
-
-  public void setRotation(Rotation2d rot) {
-    poseEstimator.resetRotation(rot);
-  }
-
+  /** Stops the drive. */
   public void stop() {
-    modules.setVoltage(Units.Volts.of(0));
+    runVelocity(new ChassisSpeeds());
   }
 
-  public void setModuleVoltages(Voltage[] volts) {
-    modules.setVoltage(volts);
+  /**
+   * Stops the drive and turns the modules to an X arrangement to resist movement. The modules will
+   * return to their normal orientations the next time a nonzero velocity is requested.
+   */
+  public void stopWithX() {
+    Rotation2d[] headings = new Rotation2d[4];
+    for (int i = 0; i < 4; i++) {
+      headings[i] = getModuleTranslations()[i].getAngle();
+    }
+    kinematics.resetHeadings(headings);
+    stop();
   }
 
-  public void setState(DriveState state) {
-    this.state = state;
+  /** Returns a command to run a quasistatic test in the specified direction. */
+  public Command sysIdQuasistatic(SysIdRoutine.Direction direction) {
+    return run(() -> runCharacterization(0.0))
+        .withTimeout(1.0)
+        .andThen(sysId.quasistatic(direction));
   }
 
-  public boolean isAtTargetPose() {
-    return atTargetPose;
+  /** Returns a command to run a dynamic test in the specified direction. */
+  public Command sysIdDynamic(SysIdRoutine.Direction direction) {
+    return run(() -> runCharacterization(0.0)).withTimeout(1.0).andThen(sysId.dynamic(direction));
   }
 
-  public boolean isAtTargetAngle() {
-    return atTargetAngle;
+  /** Returns the module states (turn angles and drive velocities) for all of the modules. */
+  @AutoLogOutput(key = "SwerveStates/Measured")
+  private SwerveModuleState[] getModuleStates() {
+    SwerveModuleState[] states = new SwerveModuleState[4];
+    for (int i = 0; i < 4; i++) {
+      states[i] = modules[i].getState();
+    }
+    return states;
+  }
+
+  /** Returns the measured chassis speeds of the robot. */
+  @AutoLogOutput(key = "SwerveChassisSpeeds/Measured")
+  private ChassisSpeeds getChassisSpeeds() {
+    return kinematics.toChassisSpeeds(getModuleStates());
+  }
+
+  /** Returns the position of each module in radians. */
+  public double[] getWheelRadiusCharacterizationPositions() {
+    double[] values = new double[4];
+    for (int i = 0; i < 4; i++) {
+      values[i] = modules[i].getWheelRadiusCharacterizationPosition();
+    }
+    return values;
+  }
+
+  /** Returns the average velocity of the modules in rotations/sec (Phoenix native units). */
+  public double getFFCharacterizationVelocity() {
+    double output = 0.0;
+    for (int i = 0; i < 4; i++) {
+      output += modules[i].getFFCharacterizationVelocity() / 4.0;
+    }
+    return output;
+  }
+
+  /** Returns an array of module translations. */
+  public static Translation2d[] getModuleTranslations() {
+    return new Translation2d[] {
+      new Translation2d(TunerConstants.FrontLeft.LocationX, TunerConstants.FrontLeft.LocationY),
+      new Translation2d(TunerConstants.FrontRight.LocationX, TunerConstants.FrontRight.LocationY),
+      new Translation2d(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
+      new Translation2d(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)
+    };
   }
 }
