@@ -50,9 +50,10 @@ public class DriveModuleIOTalonFX implements DriveModuleIO {
 
   //TODO: set up low level IO
 
-  public DriveModuleIOTalonFX(SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constants,
+  public DriveModuleIOTalonFX(
+    SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration> constants,
     PhoenixOdometryThread thread
-) {
+  ) {
     motor = new SparkMax(CanIDs.DRIVE_CAN_IDS[id], MotorType.kBrushless);
     encoder = motor.getEncoder();
   }

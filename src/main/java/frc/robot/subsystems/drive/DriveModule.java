@@ -23,7 +23,7 @@ public class DriveModule{
     private final Alert turnDisconnectedAlert;
     private final Alert turnEncoderDisconnectedAlert;
 
-    public DriveModule(DriveModuleIO io, int index, ){
+    public DriveModule(DriveModuleIO io, int index){
         this.io = io;
         this.index = index;
 
@@ -76,6 +76,6 @@ public class DriveModule{
     }
 
     public SwerveModuleState getState(){
-        return new SwerveModuleState(inputs.driveVelMetersPerSecond, Rotation2d.fromRotations(inputs.turnRelativePosRotations))
+        return new SwerveModuleState(inputs.driveVelMetersPerSecond, Rotation2d.fromRotations(inputs.turnRelativePosRotations));
     }
 }

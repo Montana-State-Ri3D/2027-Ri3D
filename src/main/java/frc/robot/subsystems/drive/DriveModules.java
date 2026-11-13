@@ -37,8 +37,6 @@ public class DriveModules {
 
   private DriveModule[] modules = new DriveModule[DriveConstants.NUM_MODULES]; // FL, FR, BL, BR
 
-  private ChassisSpeeds desiredSpeeds = new ChassisSpeeds();
-
   static final Lock odometryLock = new ReentrantLock();
   private final GyroIO gyroIO;
   private final GyroIOInputsAutoLogged gyroInputs = new GyroIOInputsAutoLogged();

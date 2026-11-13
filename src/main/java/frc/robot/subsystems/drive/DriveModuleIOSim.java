@@ -14,7 +14,7 @@ import org.littletonrobotics.junction.Logger;
 
 public class DriveModuleIOSim implements DriveModuleIO {
 
-  private final DriveModuleSparkInputsAutoLogged inputs = new DriveModuleSparkInputsAutoLogged();
+  private final DriveModuleIOInputsAutoLogged inputs = new DriveModuleIOInputsAutoLogged();
 
   private final GenericMotorSim motor =
       new GenericMotorSim(DCMotor.getNEO(1), DriveConstants.GEAR_RATIO, DriveConstants.MOI);

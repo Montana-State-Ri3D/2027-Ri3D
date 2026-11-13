@@ -13,8 +13,12 @@
 
 package frc.robot;
 
+import com.ctre.phoenix6.configs.CANcoderConfiguration;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.Odometry;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -25,6 +29,7 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.lib.team2930.TunableNumberGroup;
 import frc.lib.team2930.commands.RunsWhenDisabledInstantCommand;
 import frc.lib.team6328.LoggedTunableNumber;
+import frc.robot.Constants.DriveConstants;
 import frc.robot.autonomous.AutoManager;
 import frc.robot.stateMachines.SuperStateMachine;
 import frc.robot.stateMachines.SuperStateMachine.SuperState;
@@ -36,6 +41,7 @@ import frc.robot.subsystems.arm.ArmIOSim;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveModuleIOTalonFX;
 import frc.robot.subsystems.drive.DriveModules;
+import frc.robot.subsystems.drive.PhoenixOdometryThread;
 import frc.robot.subsystems.drive.gyro.GyroIO;
 import frc.robot.subsystems.drive.gyro.GyroIOPigeon2;
 import frc.robot.subsystems.elevator.Elevator;
@@ -69,8 +75,6 @@ public class RobotContainer {
   private final Hopper hopper;
   private final Shooter shooter;
   private final Arm arm;
-  private final USBVision vision;
-  // private final Vision vision;
 
   private final SuperStateMachine superStateMachine;
 
@@ -80,24 +84,26 @@ public class RobotContainer {
   private SendableChooser<Supplier<Command>> autoChooser = new SendableChooser<Supplier<Command>>();
   private Command autoCommand = Commands.none();
   private final AutoManager autoManager;
+  private PhoenixOdometryThread thread = new PhoenixOdometryThread();
+  private RobotOdometry odometry = new RobotOdometry(DriveConstants.KINEMATICS, null, null)
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
     switch (Constants.currentMode) {
       case REAL: // Real robot, instantiate hardware IO implementations
         //TODO: fix drive instantiation
-        drive = new Drive(new DriveModules(new GyroIOPigeon2(), new DriveModuleIOTalonFX(Talon), new DriveModuleIOTalonFX(1), new DriveModuleIOTalonFX(2), new DriveModuleIOTalonFX(3)), , controller);
+        drive = new Drive(
+          new GyroIOPigeon2(),
+          new DriveModuleIOTalonFX(0),
+          new DriveModuleIOTalonFX(1),
+          new DriveModuleIOTalonFX(2),
+          new DriveModuleIOTalonFX(3),
+          odometry, controller);
         elevator = new Elevator(new ElevatorIOReal());
         intake = new Intake(new IntakeIOReal());
         shooter = new Shooter(new ShooterIOReal());
         hopper = new Hopper(new HopperIOReal());
         arm = new Arm(new ArmIOReal());
-        vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
-        // vision =
-        //     new Vision(
-        //         drive::addVisionMeasurement,
-        //         new VisionIOLimelight(camera0Name, drive::getRotation),
-        //         new VisionIOLimelight(camera1Name, drive::getRotation));
         break;
 
       case SIM: // Sim robot, instantiate physics sim IO implementations
@@ -107,12 +113,6 @@ public class RobotContainer {
         shooter = new Shooter(new ShooterIOSim());
         hopper = new Hopper(new HopperIOSim());
         arm = new Arm(new ArmIOSim());
-        vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
-        // vision =
-        //     new Vision(
-        //         drive::addVisionMeasurement,
-        //         new VisionIOPhotonVisionSim(camera0Name, robotToCamera0, drive::getPose),
-        //         new VisionIOPhotonVisionSim(camera1Name, robotToCamera1, drive::getPose));
         break;
 
       default: // Replayed robot, disable IO implementations
@@ -123,8 +123,6 @@ public class RobotContainer {
         shooter = new Shooter(new ShooterIO() {});
         hopper = new Hopper(new HopperIO() {});
         arm = new Arm(new ArmIO() {});
-        vision = new USBVision(new USBVisionIO() {}, drive::addVisionMeasurement);
-        // vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         break;
     }
 

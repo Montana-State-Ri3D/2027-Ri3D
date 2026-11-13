@@ -1,21 +1,13 @@
 package frc.robot.subsystems.drive;
 
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.estimator.MecanumDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.MecanumDriveWheelPositions;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.units.Units;
 import edu.wpi.first.units.measure.LinearVelocity;
-import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.lib.team2930.LoggerEntry;
@@ -30,8 +22,6 @@ import frc.robot.RobotOdometry;
 import frc.robot.autonomous.ChoreoTrajectoryWithName;
 import frc.robot.subsystems.drive.ChoreoHelper.ChassisSpeedsWithPathEnd;
 import frc.robot.subsystems.drive.gyro.GyroIO;
-import frc.robot.subsystems.drive.gyro.GyroIOInputsAutoLogged;
-import org.littletonrobotics.junction.AutoLogOutput;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends SubsystemBase {
@@ -48,25 +38,13 @@ public class Drive extends SubsystemBase {
   private final DriveModules modules;
   private final DriveIOInputsAutoLogged inputs = new DriveIOInputsAutoLogged();
 
-  private final GyroIO gyroIO;
-  private final GyroIOInputsAutoLogged gyroInputs = new GyroIOInputsAutoLogged();
-
   private final RobotOdometry odometry;
 
   private final CommandXboxController controller;
 
-  private final MecanumDrivePoseEstimator poseEstimator =
-      new MecanumDrivePoseEstimator(
-          DriveConstants.KINEMATICS,
-          Rotation2d.kZero,
-          new MecanumDriveWheelPositions(),
-          Pose2d.kZero);
-
   private static final LoggerGroup loggerGroup = LoggerGroup.build(DriveConstants.ROOT_TABLE);
   private static final LoggerEntry.Text stateLogger = loggerGroup.buildString("currentState");
   private static final LoggerGroup rotateToAngleLoggerGroup = loggerGroup.subgroup("RotateToAngle");
-  private static final LoggerEntry.Decimal rotationLogger =
-      rotateToAngleLoggerGroup.buildDecimal("CurrentRotation");
   private static final LoggerEntry.Decimal targetRotationLogger =
       rotateToAngleLoggerGroup.buildDecimal("TargetRotation");
 
@@ -92,8 +70,6 @@ public class Drive extends SubsystemBase {
   private final LoggedTunableNumber angularKP = angular.build("P", 0.1);
   private final LoggedTunableNumber angularKD = angular.build("D", 0.0);
 
-  private Rotation2d simYawAngle = Rotation2d.kZero;
-
   private final double DEADBAND = 0.1;
 
   private ChoreoHelper choreoHelper;
@@ -116,9 +92,14 @@ public class Drive extends SubsystemBase {
   private boolean atTargetPose;
   private boolean atTargetAngle;
 
-  public Drive(DriveModules modules, GyroIO gyroIO, RobotOdometry odometry, CommandXboxController controller) {
-    this.modules = modules;
-    this.gyroIO = gyroIO;
+  public Drive(GyroIO gyroIO,
+      DriveModuleIO flModuleIO,
+      DriveModuleIO frModuleIO,
+      DriveModuleIO blModuleIO,
+      DriveModuleIO brModuleIO,
+      RobotOdometry odometry,
+      CommandXboxController controller) {
+    this.modules = new DriveModules(gyroIO, flModuleIO, frModuleIO, blModuleIO, brModuleIO, odometry);
     this.odometry = odometry;
     this.controller = controller;
     driveToPose = new DriveToPose(this, () -> targetPose);
@@ -129,19 +110,9 @@ public class Drive extends SubsystemBase {
   @Override
   public void periodic() {
     modules.perodic();
-    gyroIO.updateInputs(gyroInputs);
     Logger.processInputs(DriveConstants.ROOT_TABLE, inputs);
-    Logger.processInputs(DriveConstants.ROOT_TABLE + "/Gyro", gyroInputs);
     Logger.recordOutput(DriveConstants.ROOT_TABLE + "/TargetPose", targetPose);
-    Logger.recordOutput(
-        DriveConstants.ROOT_TABLE + "/TargetAngleDegrees", targetAngle.getDegrees());
-    if (RobotBase.isSimulation())
-      simYawAngle =
-          simYawAngle.plus(
-              Rotation2d.fromRadians(
-                  inputs.realSpeeds.omegaRadiansPerSecond * Constants.defaultPeriod));
-    poseEstimator.update(
-        RobotBase.isReal() ? gyroInputs.yawPosition : simYawAngle, inputs.positions);
+    Logger.recordOutput(DriveConstants.ROOT_TABLE + "/TargetAngleDegrees", targetAngle.getDegrees());
 
     int hc = hashCode();
 
