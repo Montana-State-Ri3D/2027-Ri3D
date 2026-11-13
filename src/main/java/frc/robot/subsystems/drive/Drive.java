@@ -173,9 +173,8 @@ public class Drive extends SubsystemBase {
           rotateToAngleController.setPID(rotToAngKP.get(), 0, rotToAngKD.get());
         if (rotToAngTolerance.hasChanged(hc))
           rotateToAngleController.setTolerance(Math.toRadians(rotToAngTolerance.get()));
-        double currentRot = getRotation().getRadians();
+        double currentRot = odometry.getRotation2d().getRadians();
         double targetRot = targetAngle.getRadians();
-        rotationLogger.info(currentRot);
         targetRotationLogger.info(targetRot);
         driveController(rotateToAngleController.calculate(currentRot, targetRot));
         atTargetAngle = rotateToAngleController.atSetpoint();
@@ -193,7 +192,7 @@ public class Drive extends SubsystemBase {
     choreoHelper =
         new ChoreoHelper(
             System.currentTimeMillis() / 1000.0,
-            getPose(),
+            odometry.getEstimatedPose2d(),
             traj,
             DriveConstants.WHEEL_OFFSETS[0].getX() / 2.0,
             new PIDController(linearKP.get(), 0, linearKD.get()),
@@ -232,7 +231,7 @@ public class Drive extends SubsystemBase {
                 ? Constants.DriveConstants.MAX_ANGULAR_SPEED.times(
                     Math.copySign(angMagnitude * angMagnitude, angMagnitude))
                 : Constants.DriveConstants.MAX_ANGULAR_SPEED.times(omegaOverride),
-            getRotation()));
+            odometry.getRotation2d()));
   }
 
   public void driveRobotCentric(ChassisSpeeds speeds) {

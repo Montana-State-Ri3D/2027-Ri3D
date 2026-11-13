@@ -7,6 +7,7 @@ import java.util.Queue;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.revrobotics.spark.ClosedLoopSlot;
@@ -27,7 +28,7 @@ public class DriveModuleIOTalonFX implements DriveModuleIO {
 
   private final TalonFX driveMotor;
   private final TalonFX turnMotor;
-  private final CANCoder encoder;
+  private final CANcoder encoder;
   private final TalonFXConfiguration id;
 
   private final Queue<Double> timestamps;
