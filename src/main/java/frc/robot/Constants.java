@@ -137,6 +137,30 @@ public final class Constants {
     }
   }
 
+  public class ExampleElevatorConstants {
+    public static final String ROOT_TABLE = "ExampleElevator";
+    public static final double GEAR_RATIO = 1; // TODO: determine (pulley / motor)
+    public static final boolean INVERT = false; // TODO: determine
+    public static final Distance PULLEY_RADIUS = Units.Inch.of(2); // TODO: determine
+    public static final double INCHES_TO_MOTOR_ROT =
+        1.0 / (PULLEY_RADIUS.in(Units.Inches) * 2 * Math.PI * GEAR_RATIO);
+    public static final double MOI = 0.0001;
+
+    public static final Distance MAX_HEIGHT = Units.Inches.of(30); // TODO: determine
+
+    public static final SparkMaxConfig MOTOR_CONFIG() {
+      SparkMaxConfig config = new SparkMaxConfig();
+      config.absoluteEncoder.inverted(INVERT);
+      config.inverted(INVERT);
+      config.idleMode(IdleMode.kBrake);
+      config.smartCurrentLimit(40);
+      config.encoder.positionConversionFactor(1.0 / INCHES_TO_MOTOR_ROT);
+      config.encoder.velocityConversionFactor(1.0 / INCHES_TO_MOTOR_ROT);
+      config.closedLoop.maxMotion.positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal);
+      return config;
+    }
+  }
+
   public class IntakeConstants {
     public static final String ROOT_TABLE = "Intake";
 
