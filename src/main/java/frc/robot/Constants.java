@@ -156,7 +156,7 @@ public final class Constants {
         return config;
       }
     }
-
+  
     public class BackRollers {
       public static final double GEAR_RATIO = 1; // TODO: determine (mech / motor)
       public static final boolean INVERT = false; // TODO: determine
@@ -191,6 +191,25 @@ public final class Constants {
         config.smartCurrentLimit(40);
         config.encoder.positionConversionFactor(1.0 / INCHES_TO_MOTOR_ROT);
         config.encoder.velocityConversionFactor(1.0 / INCHES_TO_MOTOR_ROT);
+        config.closedLoop.maxMotion.positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal);
+        return config;
+      }
+    }
+  }
+
+  public class FlywheelConstants {
+    public static final String ROOT_TABLE = "Flywheel";
+    public class Extender {
+      public static final boolean INVERT = true;
+      public static final Distance HOME_POSITION = Units.Meter.of(0);
+      public static final double GEAR_RATIO = 1 / 50.0;
+
+      public static final SparkMaxConfig MOTOR_CONFIG() {
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.absoluteEncoder.inverted(INVERT);
+        config.inverted(INVERT);
+        config.idleMode(IdleMode.kBrake);
+        config.smartCurrentLimit(40);
         config.closedLoop.maxMotion.positionMode(MAXMotionPositionMode.kMAXMotionTrapezoidal);
         return config;
       }
